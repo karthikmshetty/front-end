@@ -1,8 +1,83 @@
 @import 'tailwindcss';
 
-/* Project design tokens. Use them as classes: bg-brand, text-brand, etc. */
+/* Project design tokens. Use them as classes: bg-primary, text-on-surface, etc. */
 @theme {
-  --color-brand: #2563eb;
-  --color-brand-foreground: #ffffff;
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /*
+   * Colours (Figma "Color Guidance", light theme). Names follow the Figma roles.
+   * Values marked "estimated" were sampled from screenshots; all others are exact values
+   * from the Figma SVG exports (Add Product, Success Modal, Attention Modal).
+   */
+  --color-primary: #0468d5;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #e8eeff; /* estimated */
+  --color-on-primary-container: #0354b0;
+  --color-primary-fixed-dim: #adc7ff;
+  --color-secondary: #36beb6;
+  --color-secondary-container: #60dbd6; /* estimated */
+  --color-on-secondary-container: #ffffff; /* estimated */
+  --color-surface: #f9f9ff;
+  --color-surface-container-low: #f2f2ff;
+  --color-surface-container: #eef0fb;
+  --color-surface-container-high: #dde2f4;
+  --color-on-surface: #181c23;
+  --color-on-surface-variant: #414754;
+  --color-outline: #717786;
+  --color-outline-variant: #d8deec; /* estimated */
+  --color-error: #a40018;
+  --color-error-outline: #db3236;
+  --color-success: #50c878;
+  --color-warning: #f0ad4e;
+
+  --font-sans: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Typography (Figma "Typography" guide). Sizes are Figma px / 16. */
+  --font-poppins: 'Poppins', system-ui, sans-serif;
+
+  /* Display */
+  --text-display-large: 3.5625rem;
+  --text-display-large--line-height: calc(64 / 57);
+  --text-display-medium: 2.8125rem;
+  --text-display-medium--line-height: calc(52 / 45);
+  --text-display-small: 2.25rem;
+  --text-display-small--line-height: calc(44 / 36);
+
+  /* Headline */
+  --text-headline-large: 2rem;
+  --text-headline-large--line-height: calc(40 / 32);
+  --text-headline-medium: 1.75rem;
+  --text-headline-medium--line-height: calc(36 / 28);
+  --text-headline-small: 1.5rem;
+  --text-headline-small--line-height: calc(32 / 24);
+
+  /* Title (Title Large not added: value unreadable in the guide) */
+  --text-title-medium: 1rem;
+  --text-title-medium--line-height: calc(24 / 16);
+  --text-title-medium--font-weight: 500;
+  --text-title-small: 0.875rem;
+  --text-title-small--line-height: calc(20 / 14);
+  --text-title-small--font-weight: 500;
+
+  /* Label */
+  --text-label-large: 0.875rem;
+  --text-label-large--line-height: calc(20 / 14);
+  --text-label-large--font-weight: 500;
+  --text-label-medium: 0.75rem;
+  --text-label-medium--line-height: calc(16 / 12);
+  --text-label-medium--font-weight: 500;
+  --text-label-small: 0.6875rem;
+  --text-label-small--line-height: calc(16 / 11);
+  --text-label-small--font-weight: 500;
+
+  /* Body (Body Small not added: size unreadable in the guide) */
+  --text-body-large: 1rem;
+  --text-body-large--line-height: calc(24 / 16);
+  --text-body-medium: 0.875rem;
+  --text-body-medium--line-height: calc(20 / 14);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+  }
 }

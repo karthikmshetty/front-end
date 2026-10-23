@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Stack
 
 React 19 + TypeScript (strict) + Vite 8 + Tailwind CSS v4. Node >= 20.19. Single-page app with
-one entry point: `index.html` -> `src/main.tsx` -> `src/App.tsx`. No router, state library, or
-test framework is installed yet.
+one entry point: `index.html` -> `src/main.tsx` -> `src/App.tsx`. `App.tsx` holds the
+react-router 7 routes (8.x needs Node 22); route screens live in `src/pages/`. No state library
+is installed yet.
 
 ## Commands
 
@@ -22,7 +23,15 @@ npm run arch          # ArchGuard architecture check (naming, layers, reuse)
 npm run arch:analyze  # rebuild the .archguard/ cache used by the MCP server
 ```
 
-There is no test runner configured; `npm test` does not exist.
+```bash
+npm test              # Vitest in watch mode
+npm run test:run      # Vitest once (CI)
+```
+
+Component tests use Vitest + jsdom + Testing Library (`test` block in `vite.config.ts`, setup in
+`src/setupTests.ts`). Test files sit next to the source as `*.test.tsx`. Vitest globals are off:
+import `describe`/`it`/`expect` from `vitest`. Pinned to Node 20 compatible versions (Vitest 4.1,
+jsdom 29, jest-dom 6); Vitest 5, jsdom 30 and jest-dom 7 need Node 22.
 
 ## Best practices and ArchGuard
 
@@ -72,6 +81,7 @@ Prettier: no semicolons, single quotes, trailing commas, 100-col width, LF.
 ## Styling
 
 Tailwind v4 via `@tailwindcss/vite` — there is no `tailwind.config.js`. Design tokens live in the
-`@theme` block in `src/index.css` (e.g. `--color-brand` -> `bg-brand`, `text-brand`). Add new
-tokens there rather than hard-coding colors. Prettier's Tailwind plugin reads this stylesheet to
+`@theme` block in `src/index.css` (e.g. `--color-primary` -> `bg-primary`, `text-primary`). Token
+names follow the Figma colour roles; values marked "estimated" there still need confirming against
+Figma. Add new tokens there rather than hard-coding colors. Prettier's Tailwind plugin reads this stylesheet to
 sort classes.

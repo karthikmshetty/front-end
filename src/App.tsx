@@ -1,47 +1,37 @@
-import { useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
-const checks = [
-  { name: 'TypeScript', detail: 'strict mode with extra safety flags' },
-  { name: 'ESLint', detail: 'typescript-eslint strict + React rules' },
-  { name: 'Prettier', detail: 'formats on save and on every commit' },
-  { name: 'Tailwind CSS', detail: 'v4 through the Vite plugin' },
-] as const
+import AppLayout from './components/layout/AppLayout.tsx'
+import ProtectedRoute from './components/ProtectedRoute.tsx'
+import AuthProvider from './context/AuthProvider.tsx'
+import AddProductPage from './pages/AddProductPage.tsx'
+import DashboardPage from './pages/DashboardPage.tsx'
+import EditProductPage from './pages/EditProductPage.tsx'
+import LoginPage from './pages/LoginPage.tsx'
+import NotFoundPage from './pages/NotFoundPage.tsx'
+import ProductsPage from './pages/ProductsPage.tsx'
+import SignupPage from './pages/SignupPage.tsx'
 
-export default function App(): React.JSX.Element {
-  const [count, setCount] = useState(0)
+export type AppProps = Record<string, never>
 
-  const handleIncrement = (): void => {
-    setCount((current) => current + 1)
-  }
-
+export default function App(_props: AppProps): React.JSX.Element {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16 font-sans text-slate-800">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Your React app is ready</h1>
-        <p className="text-slate-600">
-          Edit <code className="rounded bg-slate-100 px-1.5 py-0.5">src/App.tsx</code> to start.
-          Every commit is linted, type-checked and formatted automatically.
-        </p>
-      </header>
-
-      <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-        {checks.map((check) => (
-          <li key={check.name} className="flex items-baseline justify-between gap-4 px-4 py-3">
-            <span className="font-medium">{check.name}</span>
-            <span className="text-right text-sm text-slate-500">{check.detail}</span>
-          </li>
-        ))}
-      </ul>
-
-      <div>
-        <button
-          type="button"
-          onClick={handleIncrement}
-          className="rounded-md bg-brand px-4 py-2 font-medium text-brand-foreground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-        >
-          Clicked {count} {count === 1 ? 'time' : 'times'}
-        </button>
-      </div>
-    </main>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/products/new" element={<AddProductPage />} />
+              <Route path="/products/:id/edit" element={<EditProductPage />} />
+            </Route>
+          </Route>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
