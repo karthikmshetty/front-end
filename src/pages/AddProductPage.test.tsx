@@ -32,7 +32,7 @@ describe('AddProductPage', () => {
     const user = userEvent.setup()
     await renderLoggedInAt('/products')
 
-    await user.click(screen.getByRole('link', { name: 'Add Product' }))
+    await user.click(await screen.findByRole('link', { name: 'Add Product' }))
 
     expect(window.location.pathname).toBe('/products/new')
     expect(within(screen.getByRole('banner')).getByText('Add Products')).toBeInTheDocument()
@@ -200,7 +200,7 @@ describe('AddProductPage gallery, brochure and draft', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
     await user.click(screen.getByRole('link', { name: 'Cancel' }))
-    await user.click(screen.getByRole('link', { name: 'Add Product' }))
+    await user.click(await screen.findByRole('link', { name: 'Add Product' }))
 
     expect(screen.getByLabelText('Product Name')).toHaveValue('RCC Cement')
     expect(screen.getByLabelText('Eco Friendly')).toBeChecked()

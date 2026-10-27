@@ -11,6 +11,23 @@ export interface Product {
   category: string
   price: number | string
   thumbnail?: string
+  // Stored by our fake API (src/mocks); real DummyJSON products do not have them.
+  form?: string
+  safety?: string
+  uom?: string
+  ecoFriendly?: boolean
+  handleWithCare?: boolean
+  ratePerUnit?: string
+  profitMargin?: string
+  productType?: string
+  productSize?: string
+  productVariant?: string
+  productColor?: string
+}
+
+export interface ProductList {
+  products: Product[]
+  total: number
 }
 
 export interface SavedProduct {
@@ -25,6 +42,24 @@ const isProduct = (value: unknown): value is Product =>
 
 const isSavedProduct = (value: unknown): value is SavedProduct =>
   isRecord(value) && typeof value['id'] === 'number'
+
+const isProductList = (value: unknown): value is ProductList =>
+  isRecord(value) &&
+  typeof value['total'] === 'number' &&
+  Array.isArray(value['products']) &&
+  value['products'].every(isProduct)
+
+// Same URLs as DummyJSON: /products lists everything, /products/search?q= filters by text.
+export async function listProducts(search = ''): Promise<ApiResult<ProductList>> {
+  const query = search.trim()
+  const path =
+    query === '' ? '/products?limit=0' : `/products/search?q=${encodeURIComponent(query)}&limit=0`
+  const result = await request(path, { method: 'GET' })
+  if (result.error) {
+    return result
+  }
+  return isProductList(result.data) ? { error: false, data: result.data } : UNEXPECTED_RESPONSE
+}
 
 export async function getProduct(id: number): Promise<ApiResult<Product>> {
   const result = await request(`/products/${String(id)}`, { method: 'GET' })
@@ -78,7 +113,7 @@ export function buildProductFormData(values: ProductFormValues, files: ProductFi
   return data
 }
 
-// Pre-fills the edit form. DummyJSON products only have some of our fields; the rest stay empty.
+// Pre-fills the edit form. Fields the API does not return (DummyJSON has no "form" etc.) stay empty.
 export function toProductFormValues(product: Product): ProductFormValues {
   return {
     ...EMPTY_PRODUCT_VALUES,
@@ -86,5 +121,16 @@ export function toProductFormValues(product: Product): ProductFormValues {
     category: product.category,
     description: product.description,
     marketPrice: String(product.price),
+    form: product.form ?? '',
+    safety: product.safety ?? '',
+    uom: product.uom ?? '',
+    ecoFriendly: product.ecoFriendly ?? false,
+    handleWithCare: product.handleWithCare ?? false,
+    ratePerUnit: product.ratePerUnit ?? '',
+    profitMargin: product.profitMargin ?? '',
+    productType: product.productType ?? '',
+    productSize: product.productSize ?? '',
+    productVariant: product.productVariant ?? '',
+    productColor: product.productColor ?? '',
   }
 }

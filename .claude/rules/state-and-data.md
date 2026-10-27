@@ -15,9 +15,17 @@ ArchGuard cannot check these; they come from bugs fixed in other 7Edge projects.
 | Multi-step form drafts that survive navigation | A store with session-storage persistence, inside the domain |
 | Cross-screen UI preferences                    | A global store                                              |
 | Navigation helpers (back links, breadcrumbs)   | React Context                                               |
+| Server data (product list, product details)    | RTK Query endpoints in `src/store/` (Redux Toolkit)         |
 
-A global store is never used for form state. No state library is installed yet. Ask
-before adding one.
+A global store is never used for form state. Redux Toolkit is installed for server data only:
+RTK Query endpoints use `queryFn` to call the `*Service.ts` functions (never `fetch` directly) and
+use tags so lists refetch after add/edit. Ask before adding other state libraries.
+
+## Fake API (until the real back-end exists)
+
+`src/mocks/` holds an MSW fake API with the same URLs as the real one. It runs only on the dev
+server when `VITE_USE_MOCKS=true`. New endpoints get a handler there; pages and services must not
+know whether they talk to the fake or the real API.
 
 ## Filter popups: pending vs applied
 

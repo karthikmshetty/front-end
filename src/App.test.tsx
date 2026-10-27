@@ -139,7 +139,7 @@ describe('App', () => {
 
       expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument()
       expect(screen.getByRole('searchbox', { name: 'Search products' })).toBeInTheDocument()
-      expect(screen.getByText(/No products yet/)).toBeInTheDocument()
+      expect(await screen.findByText(/No products yet/)).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Add Product' })).toHaveAttribute(
         'href',
         '/products/new',

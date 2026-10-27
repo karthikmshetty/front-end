@@ -18,6 +18,8 @@ export const EMILY = {
   image: '',
 }
 
+export const EMPTY_PRODUCT_LIST = { products: [], total: 0, skip: 0, limit: 0 }
+
 export const mockFetch = vi.fn<typeof fetch>()
 
 export const jsonResponse = (body: unknown, status = 200): Response =>
@@ -68,7 +70,12 @@ export function renderAt(path: string): void {
 // Starts on a protected page with a saved token that /auth/me accepts.
 export async function renderLoggedInAt(path: string, routes: MockRoutes = {}): Promise<void> {
   saveToken('token-1')
-  mockApi({ 'GET /auth/me': () => jsonResponse(EMILY), ...routes })
+  mockApi({
+    'GET /auth/me': () => jsonResponse(EMILY),
+    // The products page loads the list; empty unless a test overrides it.
+    'GET /products?limit=0': () => jsonResponse(EMPTY_PRODUCT_LIST),
+    ...routes,
+  })
   renderAt(path)
   await screen.findByRole('banner')
 }
