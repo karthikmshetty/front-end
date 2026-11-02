@@ -1,32 +1,26 @@
 // Runs the real productService against the MSW handlers (msw/node), the same pair the browser
-// uses in development.
+// uses when VITE_USE_MOCKS=true. Proves the fake API speaks the same contract as the real one.
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_PRODUCT_VALUES } from '../helpers/productOptions.ts'
-import {
-  addProduct,
-  buildProductFormData,
-  getProduct,
-  listProducts,
-  updateProduct,
-} from '../services/productService.ts'
+import { addProduct, getProduct, listProducts, updateProduct } from '../services/productService.ts'
 import { handlers } from './handlers.ts'
 import { resetMockProducts } from './productDb.ts'
 
 const server = setupServer(...handlers)
 
-const CEMENT = {
+const STEEL = {
   ...EMPTY_PRODUCT_VALUES,
   name: 'Steel Rod',
   category: 'Construction',
   description: '12 mm TMT bar',
-  form: 'Solid',
-  uom: 'Per Unit',
+  ratePerUnit: '700',
   marketPrice: '850',
+  uom: 'Per Unit',
 }
 
-describe('mock product API', () => {
+describe('mock products API', () => {
   beforeAll(() => {
     server.listen({ onUnhandledRequest: 'error' })
   })
@@ -34,7 +28,7 @@ describe('mock product API', () => {
     server.close()
   })
   beforeEach(() => {
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.test')
+    vi.stubEnv('VITE_PRODUCTS_API_URL', 'https://products.test')
     resetMockProducts()
   })
   afterEach(() => {
@@ -42,48 +36,54 @@ describe('mock product API', () => {
   })
 
   it('lists and searches products', async () => {
-    const all = await listProducts()
-    const paints = await listProducts('paint')
-
-    expect(all).toMatchObject({ error: false, data: { total: 3 } })
-    expect(paints).toMatchObject({
+    expect(await listProducts()).toMatchObject({ error: false, data: { total: 3 } })
+    expect(await listProducts('paint')).toMatchObject({
       error: false,
-      data: { total: 1, products: [{ title: 'Exterior Emulsion Paint' }] },
+      data: { total: 1, products: [{ name: 'Exterior Emulsion Paint' }] },
     })
   })
 
-  it('adds a product from FormData, then lists and loads it', async () => {
+  it('uploads an image, adds the product and lists it first', async () => {
     const image = new File(['png'], 'rod.png', { type: 'image/png' })
-    const added = await addProduct(
-      buildProductFormData(CEMENT, { images: [image], brochure: null }),
-    )
 
-    expect(added).toEqual({ error: false, data: expect.objectContaining({ id: 4 }) as unknown })
-    expect(await getProduct(4)).toMatchObject({
+    const added = await addProduct(STEEL, { images: [image], brochure: null })
+
+    expect(added).toMatchObject({
       error: false,
-      data: { title: 'Steel Rod', price: 850, form: 'Solid', uom: 'Per Unit' },
+      data: { name: 'Steel Rod', ratePerUnit: 700, marketSellingPrice: 850, uom: 'Per Unit' },
     })
-    expect(await listProducts()).toMatchObject({ data: { total: 4 } })
+    const list = await listProducts()
+    expect(list).toMatchObject({ error: false, data: { total: 4 } })
+    expect(list.error ? undefined : list.data.products[0]?.name).toBe('Steel Rod')
   })
 
-  it('updates a product', async () => {
-    const result = await updateProduct(
-      1,
-      buildProductFormData(
-        { ...CEMENT, name: 'RCC Cement 53 Grade' },
-        { images: [], brochure: null },
-      ),
+  it('rejects a product without a category, like the real API', async () => {
+    expect(await addProduct({ ...STEEL, category: '' }, { images: [], brochure: null })).toEqual({
+      error: true,
+      status: 400,
+      message: 'Category is required',
+    })
+  })
+
+  it('gets, updates and 404s like the real API', async () => {
+    const loaded = await getProduct('mock-cement')
+    expect(loaded).toMatchObject({ error: false, data: { name: 'RCC Cement', form: 'Powder' } })
+    if (loaded.error) {
+      return
+    }
+
+    const updated = await updateProduct(
+      loaded.data,
+      { ...STEEL, name: 'RCC Cement 53 Grade' },
+      { images: [], brochure: null },
     )
 
-    expect(result.error).toBe(false)
-    expect(await getProduct(1)).toMatchObject({ data: { title: 'RCC Cement 53 Grade' } })
-  })
-
-  it('returns 404 for an unknown product', async () => {
-    expect(await getProduct(999)).toEqual({
+    expect(updated).toMatchObject({ error: false, data: { name: 'RCC Cement 53 Grade' } })
+    expect(await getProduct('mock-cement')).toMatchObject({ data: { name: 'RCC Cement 53 Grade' } })
+    expect(await getProduct('nope')).toEqual({
       error: true,
       status: 404,
-      message: "Product with id '999' not found",
+      message: 'Product not found',
     })
   })
 })

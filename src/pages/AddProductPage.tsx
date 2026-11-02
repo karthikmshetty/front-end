@@ -3,19 +3,22 @@ import { useState } from 'react'
 import ProductForm from '../components/ProductForm.tsx'
 import SuccessModal from '../components/SuccessModal.tsx'
 import { clearProductDraft, loadProductDraft, saveProductDraft } from '../helpers/productDraft.ts'
-import type { ProductFormValues } from '../helpers/validators.ts'
+import type { ProductFiles, ProductFormValues } from '../helpers/validators.ts'
 import { useProductSave } from '../hooks/useProductSave.ts'
-import type { SavedProduct } from '../services/productService.ts'
+import type { Product } from '../services/productService.ts'
 import type { ApiResult } from '../shared/apiClient.ts'
 import { toApiResult, useAddProductMutation } from '../store/productsApi.ts'
 
 export type AddProductPageProps = Record<string, never>
 
 export default function AddProductPage(_props: AddProductPageProps): React.JSX.Element {
-  // Redux mutation: on success RTK Query refetches the product list automatically.
+  // Redux mutation: uploads the files, creates the product, then RTK Query refetches the list.
   const [addProduct] = useAddProductMutation()
-  const addAndClearDraft = async (data: FormData): Promise<ApiResult<SavedProduct>> => {
-    const result = toApiResult(await addProduct(data))
+  const addAndClearDraft = async (
+    values: ProductFormValues,
+    files: ProductFiles,
+  ): Promise<ApiResult<Product>> => {
+    const result = toApiResult(await addProduct({ values, files }))
     if (!result.error) {
       // The draft is no longer needed once the product is saved.
       clearProductDraft()

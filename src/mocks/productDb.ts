@@ -1,73 +1,103 @@
-// Fake product database for the MSW mock API. Kept in localStorage so products survive a reload.
-// Delete this folder once the real back-end exists.
-import type { Product } from '../services/productService.ts'
+// Fake product database for the MSW mock API (same data shape as the real products API).
+// Kept in localStorage so products survive a reload. Used only when VITE_USE_MOCKS=true.
 
 export const MOCK_PRODUCTS_KEY = 'mockProducts'
+export const MOCK_IMAGES_KEY = 'mockProductImages'
 
-const SEED_PRODUCTS: readonly Product[] = [
-  {
-    id: 1,
-    title: 'RCC Cement',
-    description: 'Ordinary Portland cement, 50 kg bag.',
+// Same fields as the API's Product entity (back-end: entities/Product.ts), snake_case.
+export interface MockProduct {
+  id: string
+  name: string
+  category: string
+  rate_per_unit: number
+  description?: string
+  form?: string
+  safety?: string
+  uom?: string
+  product_type?: string
+  product_size?: string
+  product_variant?: string
+  product_color?: string
+  market_selling_price?: number
+  sale_profit_margin?: number
+  eco_friendly: boolean
+  handle_with_care: boolean
+  images: string[]
+  brochure?: string
+  created_at: string
+  updated_at: string
+}
+
+const seed = (
+  id: string,
+  createdAt: string,
+  fields: Omit<MockProduct, 'id' | 'images' | 'created_at' | 'updated_at'>,
+): MockProduct => ({ id, images: [], created_at: createdAt, updated_at: createdAt, ...fields })
+
+const SEED_PRODUCTS: readonly MockProduct[] = [
+  seed('mock-cement', '2026-10-01T10:00:00.000Z', {
+    name: 'RCC Cement',
     category: 'Construction',
-    price: 300,
+    description: 'Ordinary Portland cement, 50 kg bag.',
+    rate_per_unit: 200,
+    market_selling_price: 300,
+    sale_profit_margin: 33,
     form: 'Powder',
-    safety: 'Non-hazardous',
     uom: 'Per Bag',
-    ratePerUnit: '200',
-    profitMargin: '33',
-  },
-  {
-    id: 2,
-    title: 'Copper Wire 2.5 mm',
-    description: 'Insulated copper wire, 90 m coil.',
+    eco_friendly: false,
+    handle_with_care: false,
+  }),
+  seed('mock-wire', '2026-10-02T10:00:00.000Z', {
+    name: 'Copper Wire 2.5 mm',
     category: 'Electrical',
-    price: 2450,
+    description: 'Insulated copper wire, 90 m coil.',
+    rate_per_unit: 2000,
+    market_selling_price: 2450,
+    sale_profit_margin: 18,
     form: 'Solid',
-    safety: 'Non-hazardous',
     uom: 'Per Box',
-    ratePerUnit: '2000',
-    profitMargin: '18',
-  },
-  {
-    id: 3,
-    title: 'Exterior Emulsion Paint',
-    description: 'Weather-proof wall paint, white, 20 L.',
+    eco_friendly: false,
+    handle_with_care: false,
+  }),
+  seed('mock-paint', '2026-10-03T10:00:00.000Z', {
+    name: 'Exterior Emulsion Paint',
     category: 'Paints',
-    price: 5200,
+    description: 'Weather-proof wall paint, white, 20 L.',
+    rate_per_unit: 4300,
+    market_selling_price: 5200,
+    sale_profit_margin: 17,
     form: 'Liquid',
-    safety: 'Flammable',
     uom: 'Per Litre',
-    ratePerUnit: '4300',
-    profitMargin: '17',
-    handleWithCare: true,
-  },
+    eco_friendly: false,
+    handle_with_care: true,
+  }),
 ]
 
-let cache: Product[] | null = null
+let cache: MockProduct[] | null = null
 
-function readStored(): Product[] | null {
+function readJson(key: string): unknown {
   try {
-    const raw = localStorage.getItem(MOCK_PRODUCTS_KEY)
-    const parsed: unknown = raw === null ? null : JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as Product[]) : null
+    const raw = localStorage.getItem(key)
+    return raw === null ? null : JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-function all(): Product[] {
-  cache ??= readStored() ?? [...SEED_PRODUCTS]
-  return cache
+function writeJson(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // Storage full or blocked: the change lives in memory for this session.
+  }
 }
 
-function persist(products: Product[]): void {
-  cache = products
-  try {
-    localStorage.setItem(MOCK_PRODUCTS_KEY, JSON.stringify(products))
-  } catch {
-    // Storage full or blocked: keep the change in memory for this session.
+function all(): MockProduct[] {
+  if (cache === null) {
+    const stored = readJson(MOCK_PRODUCTS_KEY)
+    cache = Array.isArray(stored) ? (stored as MockProduct[]) : [...SEED_PRODUCTS]
   }
+  return cache
 }
 
 // Tests start from the seed data again.
@@ -75,81 +105,79 @@ export function resetMockProducts(): void {
   cache = null
   try {
     localStorage.removeItem(MOCK_PRODUCTS_KEY)
+    localStorage.removeItem(MOCK_IMAGES_KEY)
   } catch {
     // Nothing stored.
   }
 }
 
-export function listMockProducts(search = ''): Product[] {
+// Newest first, like the real API's default sort_order=desc. Search matches the name only.
+export function listMockProducts(search = ''): MockProduct[] {
   const query = search.trim().toLowerCase()
-  const products = all()
-  if (query === '') {
-    return products
-  }
-  return products.filter((product) =>
-    [product.title, product.category, product.description].some((text) =>
-      text.toLowerCase().includes(query),
-    ),
-  )
-}
-
-export function findMockProduct(id: number): Product | undefined {
-  return all().find((product) => product.id === id)
-}
-
-// Turns the FormData text fields into a product (numbers and booleans arrive as strings).
-function fromFields(fields: ReadonlyMap<string, string>): Omit<Product, 'id'> {
-  const text = (key: string): string => fields.get(key) ?? ''
-  return {
-    title: text('title'),
-    description: text('description'),
-    category: text('category'),
-    price: Number(text('price')),
-    form: text('form'),
-    safety: text('safety'),
-    uom: text('uom'),
-    ecoFriendly: text('ecoFriendly') === 'true',
-    handleWithCare: text('handleWithCare') === 'true',
-    ratePerUnit: text('ratePerUnit'),
-    profitMargin: text('profitMargin'),
-    productType: text('productType'),
-    productSize: text('productSize'),
-    productVariant: text('productVariant'),
-    productColor: text('productColor'),
-  }
+  return all()
+    .filter((product) => product.name.toLowerCase().includes(query))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
 export function createMockProduct(
-  fields: ReadonlyMap<string, string>,
-  thumbnail: string | undefined,
-): Product {
-  const products = all()
-  const id = products.reduce((max, product) => Math.max(max, product.id), 0) + 1
-  const product: Product = {
-    id,
-    ...fromFields(fields),
-    ...(thumbnail === undefined ? {} : { thumbnail }),
+  fields: Omit<MockProduct, 'id' | 'created_at' | 'updated_at'>,
+): MockProduct {
+  const now = new Date().toISOString()
+  const product: MockProduct = {
+    ...fields,
+    id: crypto.randomUUID(),
+    created_at: now,
+    updated_at: now,
   }
-  persist([...products, product])
+  cache = [...all(), product]
+  writeJson(MOCK_PRODUCTS_KEY, cache)
   return product
 }
 
-// Keeps the old thumbnail when no new image was uploaded.
-export function updateMockProduct(
-  id: number,
-  fields: ReadonlyMap<string, string>,
-  thumbnail: string | undefined,
-): Product | undefined {
+export function findMockProduct(id: string): MockProduct | undefined {
+  return all().find((product) => product.id === id)
+}
+
+// PUT is a full replace: everything except id and created_at comes from `fields`.
+export function replaceMockProduct(
+  id: string,
+  fields: Omit<MockProduct, 'id' | 'created_at' | 'updated_at'>,
+): MockProduct | undefined {
   const existing = findMockProduct(id)
   if (existing === undefined) {
     return undefined
   }
-  const newThumbnail = thumbnail ?? existing.thumbnail
-  const updated: Product = {
+  const updated: MockProduct = {
+    ...fields,
     id,
-    ...fromFields(fields),
-    ...(newThumbnail === undefined ? {} : { thumbnail: newThumbnail }),
+    created_at: existing.created_at,
+    updated_at: new Date().toISOString(),
   }
-  persist(all().map((product) => (product.id === id ? updated : product)))
+  cache = all().map((product) => (product.id === id ? updated : product))
+  writeJson(MOCK_PRODUCTS_KEY, cache)
   return updated
+}
+
+export function deleteMockProduct(id: string): boolean {
+  if (findMockProduct(id) === undefined) {
+    return false
+  }
+  cache = all().filter((product) => product.id !== id)
+  writeJson(MOCK_PRODUCTS_KEY, cache)
+  return true
+}
+
+// Fake S3: uploaded images are kept as small data: URLs, looked up by their file_url.
+function images(): Record<string, string> {
+  const stored = readJson(MOCK_IMAGES_KEY)
+  return typeof stored === 'object' && stored !== null ? (stored as Record<string, string>) : {}
+}
+
+export function saveMockImage(fileUrl: string, dataUrl: string): void {
+  writeJson(MOCK_IMAGES_KEY, { ...images(), [fileUrl]: dataUrl })
+}
+
+// The URL an <img> can show: the stored data: URL, or the original when there is none.
+export function mockImageSrc(fileUrl: string): string {
+  return images()[fileUrl] ?? fileUrl
 }

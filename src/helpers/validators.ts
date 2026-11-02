@@ -107,7 +107,7 @@ export interface ProductFormValues {
   productColor: string
 }
 
-// The files picked in the product form, sent with the fields on submit.
+// The files picked in the product form, uploaded to S3 on submit.
 export interface ProductFiles {
   images: readonly File[]
   brochure: File | null
@@ -115,9 +115,13 @@ export interface ProductFiles {
 
 export const PRODUCT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024
-// The design has four thumbnail slots under the main image.
+// The design has four thumbnail slots under the main image (the API allows up to 5).
 export const PRODUCT_IMAGE_LIMIT = 4
-// "Upload Product Brochure (optional)": the design only sets the size limit, not the file type.
+// Limits of the products API (POST /products); checked here so users see them before saving.
+export const PRODUCT_NAME_MAX_LENGTH = 100
+export const PRODUCT_DESCRIPTION_MAX_LENGTH = 1000
+// "Upload Product Brochure (optional)": 25 MB from the design; the API only accepts PDF uploads.
+export const BROCHURE_TYPE = 'application/pdf'
 export const BROCHURE_MAX_BYTES = 25 * 1024 * 1024
 
 const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/
@@ -132,8 +136,17 @@ export function validateImageFile(file: Pick<File, 'type' | 'size'>): string | u
   return undefined
 }
 
-export function validateBrochureFile(file: Pick<File, 'size'>): string | undefined {
+export function validateBrochureFile(file: Pick<File, 'type' | 'size'>): string | undefined {
+  if (file.type !== BROCHURE_TYPE) {
+    return 'Upload the brochure as a PDF'
+  }
   return file.size > BROCHURE_MAX_BYTES ? 'Brochure must be 25 MB or smaller' : undefined
+}
+
+function validateMaxLength(value: string, label: string, max: number): string | undefined {
+  return value.trim().length > max
+    ? `${label} must be at most ${String(max)} characters`
+    : undefined
 }
 
 export function validateAmount(value: string, label: string): string | undefined {
@@ -157,9 +170,13 @@ export function validatePercentage(value: string, label: string): string | undef
 // "Other Details" are optional in the design, so only the required sections are checked.
 export function validateProductForm(values: ProductFormValues): FormErrors<ProductFormValues> {
   return {
-    name: validateRequired(values.name, 'Product name'),
+    name:
+      validateRequired(values.name, 'Product name') ??
+      validateMaxLength(values.name, 'Product name', PRODUCT_NAME_MAX_LENGTH),
     category: validateRequired(values.category, 'Product category'),
-    description: validateRequired(values.description, 'Product description'),
+    description:
+      validateRequired(values.description, 'Product description') ??
+      validateMaxLength(values.description, 'Product description', PRODUCT_DESCRIPTION_MAX_LENGTH),
     form: validateRequired(values.form, 'Form'),
     safety: validateRequired(values.safety, 'Safety'),
     uom: validateRequired(values.uom, 'UOM'),

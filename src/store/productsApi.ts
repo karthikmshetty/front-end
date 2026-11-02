@@ -1,9 +1,10 @@
 // RTK Query: fetches products and caches them in the Redux store. It calls productService (the
-// only place that talks HTTP), so swapping the fake API for the real one changes nothing here.
+// only place that talks to the products API), so API changes stay out of this file.
 import type { SerializedError } from '@reduxjs/toolkit'
 import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react'
 
-import type { Product, ProductList, SavedProduct } from '../services/productService.ts'
+import type { ProductFiles, ProductFormValues } from '../helpers/validators.ts'
+import type { Product, ProductList } from '../services/productService.ts'
 import * as productService from '../services/productService.ts'
 import type { ApiResult } from '../shared/apiClient.ts'
 
@@ -24,7 +25,7 @@ const toQueryResult = <T>(result: ApiResult<T>): { data: T } | { error: Products
   }
 }
 
-// "LIST" is refetched after add/update, so the products page always shows the latest data.
+// "LIST" is refetched after an add or update, so the products page always shows the latest data.
 const LIST_TAG = { type: 'Product', id: 'LIST' } as const
 
 export const productsApi = createApi({
@@ -39,17 +40,25 @@ export const productsApi = createApi({
         ...(result?.products.map(({ id }) => ({ type: 'Product' as const, id })) ?? []),
       ],
     }),
-    getProduct: build.query<Product, number>({
+    getProduct: build.query<Product, string>({
       queryFn: async (id) => toQueryResult(await productService.getProduct(id)),
       providesTags: (_result, _error, id) => [{ type: 'Product', id }],
     }),
-    addProduct: build.mutation<SavedProduct, FormData>({
-      queryFn: async (data) => toQueryResult(await productService.addProduct(data)),
+    addProduct: build.mutation<Product, { values: ProductFormValues; files: ProductFiles }>({
+      queryFn: async ({ values, files }) =>
+        toQueryResult(await productService.addProduct(values, files)),
       invalidatesTags: [LIST_TAG],
     }),
-    updateProduct: build.mutation<SavedProduct, { id: number; data: FormData }>({
-      queryFn: async ({ id, data }) => toQueryResult(await productService.updateProduct(id, data)),
-      invalidatesTags: (_result, _error, { id }) => [{ type: 'Product', id }, LIST_TAG],
+    updateProduct: build.mutation<
+      Product,
+      { product: Product; values: ProductFormValues; files: ProductFiles }
+    >({
+      queryFn: async ({ product, values, files }) =>
+        toQueryResult(await productService.updateProduct(product, values, files)),
+      invalidatesTags: (_result, _error, { product }) => [
+        { type: 'Product', id: product.id },
+        LIST_TAG,
+      ],
     }),
   }),
 })

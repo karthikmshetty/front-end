@@ -1,17 +1,31 @@
 import { screen, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
+  API_PRODUCT,
   fillRequiredProductFields,
   findRequest,
+  IMAGE_UPLOAD_ROUTES,
   installApiMocks,
   jsonResponse,
+  mockFetch,
   renderLoggedInAt,
+  requestJson,
+  S3_FILE_URL,
 } from '../testUtils.ts'
 
 const PNG = new File(['png'], 'cement.png', { type: 'image/png' })
+
+const created = (): Response =>
+  jsonResponse({ message: 'Product added successfully', data: API_PRODUCT }, 201)
+
+// Image upload works; creating the product answers with `create`.
+const saveRoutes = (create: () => Response | Promise<Response>): Record<string, typeof create> => ({
+  ...IMAGE_UPLOAD_ROUTES,
+  'POST /products': create,
+})
 
 const fillProduct = async (user: UserEvent): Promise<void> => {
   await user.upload(screen.getByLabelText('Product image file'), PNG)
@@ -83,37 +97,46 @@ describe('AddProductPage', () => {
     expect(screen.getByRole('button', { name: /Click to Upload Product Picture/ })).toBeVisible()
   })
 
-  it('sends FormData, shows "Saving…", then the returned id on /products', async () => {
+  it('uploads the image, sends JSON, shows "Saving…", then the product on /products', async () => {
     let respond: (response: Response) => void = () => undefined
     const pending = new Promise<Response>((resolve) => {
       respond = resolve
     })
     const user = userEvent.setup()
-    await renderLoggedInAt('/products/new', { 'POST /products/add': () => pending })
+    await renderLoggedInAt(
+      '/products/new',
+      saveRoutes(() => pending),
+    )
     await fillProduct(user)
 
     await user.click(screen.getByRole('button', { name: 'Add Product' }))
 
-    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
-    const request = findRequest('POST /products/add')
-    expect(request?.headers).toBeUndefined()
-    expect(request?.body).toBeInstanceOf(FormData)
-    const body = request?.body as FormData
-    expect(body.get('title')).toBe('RCC Cement')
-    expect(body.getAll('images')).toEqual([PNG])
+    expect(await screen.findByRole('button', { name: 'Saving…' })).toBeDisabled()
+    await vi.waitFor(() => {
+      expect(findRequest('POST /products')).toBeDefined()
+    })
+    const body: unknown = requestJson('POST /products')
+    expect(body).toMatchObject({
+      name: 'RCC Cement',
+      category: 'Construction',
+      rate_per_unit: 200,
+      market_selling_price: 300,
+      images: [S3_FILE_URL],
+    })
 
-    respond(jsonResponse({ id: 195, title: 'RCC Cement' }, 201))
+    respond(created())
 
     const dialog = await screen.findByRole('dialog', { name: 'Product Added Successfully' })
-    expect(dialog).toHaveTextContent('#195')
+    expect(dialog).toHaveTextContent('RCC Cement')
     expect(window.location.pathname).toBe('/products')
   })
 
   it('keeps what the user typed when saving fails', async () => {
     const user = userEvent.setup()
-    await renderLoggedInAt('/products/new', {
-      'POST /products/add': () => jsonResponse({ message: 'Server is down' }, 500),
-    })
+    await renderLoggedInAt(
+      '/products/new',
+      saveRoutes(() => jsonResponse({ message: 'Server is down' }, 500)),
+    )
     await fillProduct(user)
 
     await user.click(screen.getByRole('button', { name: 'Add Product' }))
@@ -157,36 +180,20 @@ describe('AddProductPage gallery, brochure and draft', () => {
     expect(screen.queryByRole('button', { name: 'Show image 5' })).not.toBeInTheDocument()
   })
 
-  it('sends every image and the brochure', async () => {
+  it('uploads every image and sends all their URLs', async () => {
     const user = userEvent.setup()
-    await renderLoggedInAt('/products/new', {
-      'POST /products/add': () => jsonResponse({ id: 195 }, 201),
-    })
+    await renderLoggedInAt('/products/new', saveRoutes(created))
     await fillProduct(user)
-    const second = image('second.png')
-    await user.upload(screen.getByLabelText('Product image file'), second)
-    const brochure = new File(['pdf'], 'brochure.pdf', { type: 'application/pdf' })
-    await user.upload(screen.getByLabelText('Product brochure file'), brochure)
-    expect(screen.getByText('brochure.pdf')).toBeInTheDocument()
+    await user.upload(screen.getByLabelText('Product image file'), image('second.png'))
 
     await user.click(screen.getByRole('button', { name: 'Add Product' }))
 
     await screen.findByRole('dialog', { name: 'Product Added Successfully' })
-    const body = findRequest('POST /products/add')?.body as FormData
-    expect(body.getAll('images')).toEqual([PNG, second])
-    expect(body.get('brochure')).toBe(brochure)
-  })
-
-  it('rejects a brochure over 25 MB', async () => {
-    const user = userEvent.setup()
-    await renderLoggedInAt('/products/new')
-    const big = new File(['pdf'], 'big.pdf', { type: 'application/pdf' })
-    Object.defineProperty(big, 'size', { value: 25 * 1024 * 1024 + 1 })
-
-    await user.upload(screen.getByLabelText('Product brochure file'), big)
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Brochure must be 25 MB or smaller')
-    expect(screen.queryByText('big.pdf')).not.toBeInTheDocument()
+    const uploads = mockFetch.mock.calls.filter(([, init]) => init?.method === 'PUT')
+    expect(uploads).toHaveLength(2)
+    expect(requestJson('POST /products')).toMatchObject({
+      images: [S3_FILE_URL, S3_FILE_URL],
+    })
   })
 
   it('saves a draft and fills it in next time', async () => {
@@ -208,9 +215,7 @@ describe('AddProductPage gallery, brochure and draft', () => {
 
   it('clears the draft once the product is added', async () => {
     const user = userEvent.setup()
-    await renderLoggedInAt('/products/new', {
-      'POST /products/add': () => jsonResponse({ id: 195 }, 201),
-    })
+    await renderLoggedInAt('/products/new', saveRoutes(created))
     await fillProduct(user)
     await user.click(screen.getByRole('button', { name: 'Save as draft' }))
     expect(localStorage.getItem('productDraft')).not.toBeNull()
@@ -220,5 +225,38 @@ describe('AddProductPage gallery, brochure and draft', () => {
 
     await screen.findByRole('dialog', { name: 'Product Added Successfully' })
     expect(localStorage.getItem('productDraft')).toBeNull()
+  })
+
+  it('uploads the brochure as a PDF and sends its URL', async () => {
+    const user = userEvent.setup()
+    await renderLoggedInAt('/products/new', saveRoutes(created))
+    await fillProduct(user)
+    const brochure = new File(['pdf'], 'brochure.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByLabelText('Product brochure file'), brochure)
+    expect(screen.getByText('brochure.pdf')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add Product' }))
+
+    await screen.findByRole('dialog', { name: 'Product Added Successfully' })
+    const contentTypes = mockFetch.mock.calls
+      .filter(([, init]) => init?.method === 'PUT')
+      .map(([, init]) => (init?.headers as Record<string, string> | undefined)?.['Content-Type'])
+    expect(contentTypes).toEqual(['image/png', 'application/pdf'])
+    expect(requestJson('POST /products')).toMatchObject({ brochure: S3_FILE_URL })
+  })
+
+  it('rejects a brochure that is not a PDF or is over 25 MB', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    await renderLoggedInAt('/products/new')
+    const input = screen.getByLabelText('Product brochure file')
+
+    await user.upload(input, new File(['doc'], 'brochure.docx', { type: 'application/msword' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Upload the brochure as a PDF')
+
+    const big = new File(['pdf'], 'big.pdf', { type: 'application/pdf' })
+    Object.defineProperty(big, 'size', { value: 25 * 1024 * 1024 + 1 })
+    await user.upload(input, big)
+    expect(screen.getByRole('alert')).toHaveTextContent('Brochure must be 25 MB or smaller')
+    expect(screen.queryByText('big.pdf')).not.toBeInTheDocument()
   })
 })

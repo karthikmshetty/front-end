@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 React 19 + TypeScript (strict) + Vite 8 + Tailwind CSS v4. Node >= 20.19. Single-page app with
 one entry point: `index.html` -> `src/main.tsx` -> `src/App.tsx`. `App.tsx` holds the
 react-router 7 routes (8.x needs Node 22); route screens live in `src/pages/`. Redux Toolkit +
-RTK Query (`src/store/`) hold server data. Products come from an MSW fake API (`src/mocks/`, MSW 2.x
-because 3.x needs Node 22) on the dev server while `VITE_USE_MOCKS=true` in `.env.local`; set it to
-`false` and point `VITE_API_BASE_URL` at the real back-end when it exists.
+RTK Query (`src/store/`) hold server data. Products come from the team's serverless API
+(`VITE_PRODUCTS_API_URL`, see `.claude/rules/state-and-data.md`); login uses DummyJSON
+(`VITE_API_BASE_URL`). An MSW copy of the products API (`src/mocks/`, MSW 2.x because 3.x needs
+Node 22) replaces it on the dev server when `VITE_USE_MOCKS=true` in `.env.local`.
 
 ## Commands
 

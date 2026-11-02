@@ -2,47 +2,47 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import type { Product } from '../services/productService.ts'
 import {
+  API_PRODUCT,
   fillRequiredProductFields,
+  IMAGE_UPLOAD_ROUTES,
   installApiMocks,
   jsonResponse,
+  productList,
   renderLoggedInAt,
+  S3_FILE_URL,
 } from '../testUtils.ts'
 
-const CEMENT: Product = {
-  id: 1,
-  title: 'RCC Cement',
-  description: 'Ordinary Portland cement',
-  category: 'Construction',
-  price: 300,
-  uom: 'Per Bag',
-}
-
-const listOf = (products: readonly Product[]): Response =>
-  jsonResponse({ products, total: products.length, skip: 0, limit: products.length })
+const LIST = 'GET /products?page_size=100'
 
 describe('ProductsPage', () => {
   installApiMocks()
 
-  it('lists products with an edit link for each', async () => {
-    await renderLoggedInAt('/products', { 'GET /products?limit=0': () => listOf([CEMENT]) })
+  it('lists products from the API', async () => {
+    await renderLoggedInAt('/products', {
+      [LIST]: () => jsonResponse(productList([{ ...API_PRODUCT, images: [S3_FILE_URL] }])),
+    })
 
     const row = (await screen.findByText('RCC Cement')).closest('tr')
     expect(row).not.toBeNull()
-    expect(within(row as HTMLElement).getByText('Per Bag')).toBeInTheDocument()
+    const cells = within(row as HTMLElement)
+    expect(cells.getByText('Construction')).toBeInTheDocument()
+    expect(cells.getByText('Per Bag')).toBeInTheDocument()
+    expect(cells.getByText('200')).toBeInTheDocument()
+    expect(cells.getByText('300')).toBeInTheDocument()
+    expect(row?.querySelector('img')).toHaveAttribute('src', S3_FILE_URL)
+    expect(screen.getByRole('link', { name: 'Add Product' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Edit RCC Cement' })).toHaveAttribute(
       'href',
-      '/products/1/edit',
+      `/products/${API_PRODUCT.id}/edit`,
     )
-    expect(screen.getByRole('link', { name: 'Add Product' })).toBeInTheDocument()
   })
 
   it('searches with the API and says when nothing matches', async () => {
     const user = userEvent.setup()
     await renderLoggedInAt('/products', {
-      'GET /products?limit=0': () => listOf([CEMENT]),
-      'GET /products/search?q=wire&limit=0': () => listOf([]),
+      [LIST]: () => jsonResponse(productList([API_PRODUCT])),
+      [`${LIST}&search=wire`]: () => jsonResponse(productList([])),
     })
     await screen.findByText('RCC Cement')
 
@@ -54,20 +54,22 @@ describe('ProductsPage', () => {
 
   it('shows the error when the list cannot be loaded', async () => {
     await renderLoggedInAt('/products', {
-      'GET /products?limit=0': () => jsonResponse({ message: 'Server is down' }, 500),
+      [LIST]: () =>
+        jsonResponse({ message: 'Oops! Something went wrong. Please try again later.' }, 500),
     })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Server is down')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Oops! Something went wrong.')
   })
 
   it('shows a newly added product in the list (Redux cache is refreshed)', async () => {
-    const products: Product[] = []
+    const products: unknown[] = []
     const user = userEvent.setup()
     await renderLoggedInAt('/products', {
-      'GET /products?limit=0': () => listOf(products),
-      'POST /products/add': () => {
-        products.push({ ...CEMENT, id: 7 })
-        return jsonResponse({ id: 7 }, 201)
+      ...IMAGE_UPLOAD_ROUTES,
+      [LIST]: () => jsonResponse(productList(products)),
+      'POST /products': () => {
+        products.push(API_PRODUCT)
+        return jsonResponse({ message: 'Product added successfully', data: API_PRODUCT }, 201)
       },
     })
 
@@ -87,7 +89,7 @@ describe('ProductsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Product' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Product Added Successfully' })
-    expect(dialog).toHaveTextContent('#7')
+    expect(dialog).toHaveTextContent('RCC Cement')
     expect(await screen.findByRole('link', { name: 'Edit RCC Cement' })).toBeInTheDocument()
   })
 })

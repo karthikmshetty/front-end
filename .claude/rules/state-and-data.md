@@ -21,11 +21,25 @@ A global store is never used for form state. Redux Toolkit is installed for serv
 RTK Query endpoints use `queryFn` to call the `*Service.ts` functions (never `fetch` directly) and
 use tags so lists refetch after add/edit. Ask before adding other state libraries.
 
-## Fake API (until the real back-end exists)
+## Products API
 
-`src/mocks/` holds an MSW fake API with the same URLs as the real one. It runs only on the dev
-server when `VITE_USE_MOCKS=true`. New endpoints get a handler there; pages and services must not
-know whether they talk to the fake or the real API.
+Products come from the team's API (back-end repo `part-4-serverless/api-design`, contract in
+`services/products/docs/products-swagger.yaml`), base URL `VITE_PRODUCTS_API_URL`. Login still
+uses DummyJSON (`VITE_API_BASE_URL`). `productService.ts` is the only file that knows the API's
+snake_case fields and `{ message, data }` envelope; it maps them to the app's `Product` type.
+
+- Images: `POST /products/upload-url` → `PUT` the file to `upload_url` (via `uploadFile` in
+  `src/shared/apiClient.ts`) → send the `file_url`s in `images` on `POST /products` (JSON).
+- The API rejects unknown fields and query parameters with 400, so send only documented ones.
+- Edit uses `GET` and `PUT /products/{id}`. PUT is a full replace, so unchanged images and the
+  brochure URL are sent again. Brochures upload like images with content type `application/pdf`.
+- `DELETE /products/{id}` exists in the API but has no UI yet.
+
+## Fake API (offline development)
+
+`src/mocks/` holds an MSW copy of the products API, including a fake S3 upload. It runs only on the
+dev server when `VITE_USE_MOCKS=true`. When the real API changes, update the handlers too; pages and
+services must not know whether they talk to the fake or the real API.
 
 ## Filter popups: pending vs applied
 

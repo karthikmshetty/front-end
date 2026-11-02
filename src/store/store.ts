@@ -9,8 +9,8 @@ export function makeStore() {
     reducer: { [productsApi.reducerPath]: productsApi.reducer },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        // Add/update send FormData (with files), which Redux would otherwise warn is not
-        // serializable. It only passes through RTK Query and is never read from the store.
+        // add/update receive File objects (images, brochure), which Redux would otherwise warn are not
+        // serializable. They only pass through RTK Query and are never read from the store.
         serializableCheck: {
           ignoredActionPaths: ['meta.arg.originalArgs', 'meta.baseQueryMeta'],
           ignoredPaths: [`${productsApi.reducerPath}.mutations`],

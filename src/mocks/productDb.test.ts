@@ -2,56 +2,52 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   createMockProduct,
-  findMockProduct,
   listMockProducts,
   MOCK_PRODUCTS_KEY,
+  mockImageSrc,
   resetMockProducts,
-  updateMockProduct,
+  saveMockImage,
 } from './productDb.ts'
 
-const fields = (entries: Record<string, string>): Map<string, string> =>
-  new Map(Object.entries(entries))
+const STEEL = {
+  name: 'Steel Rod',
+  category: 'Construction',
+  rate_per_unit: 700,
+  eco_friendly: false,
+  handle_with_care: false,
+  images: [],
+}
 
 describe('mock product database', () => {
   beforeEach(() => {
     resetMockProducts()
   })
 
-  it('starts with the seed products', () => {
-    expect(listMockProducts().map((product) => product.title)).toEqual([
-      'RCC Cement',
-      'Copper Wire 2.5 mm',
+  it('starts with the seed products, newest first', () => {
+    expect(listMockProducts().map((product) => product.name)).toEqual([
       'Exterior Emulsion Paint',
+      'Copper Wire 2.5 mm',
+      'RCC Cement',
     ])
   })
 
-  it('searches title, category and description, ignoring case', () => {
-    expect(listMockProducts('PAINTS').map((product) => product.id)).toEqual([3])
-    expect(listMockProducts('coil').map((product) => product.id)).toEqual([2])
+  it('searches the name, ignoring case', () => {
+    expect(listMockProducts('PAINT').map((product) => product.id)).toEqual(['mock-paint'])
     expect(listMockProducts('nothing like this')).toEqual([])
   })
 
-  it('creates a product with the next id and saves it in localStorage', () => {
-    const product = createMockProduct(
-      fields({ title: 'Steel Rod', price: '850', ecoFriendly: 'true' }),
-      'data:image/jpeg;base64,abc',
-    )
+  it('creates a product with a new id and saves it in localStorage', () => {
+    const product = createMockProduct(STEEL)
 
-    expect(product).toMatchObject({ id: 4, title: 'Steel Rod', price: 850, ecoFriendly: true })
-    expect(product.thumbnail).toBe('data:image/jpeg;base64,abc')
+    expect(product.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(listMockProducts()[0]?.name).toBe('Steel Rod')
     expect(localStorage.getItem(MOCK_PRODUCTS_KEY)).toContain('Steel Rod')
   })
 
-  it('updates a product and keeps its thumbnail when no new image is sent', () => {
-    createMockProduct(fields({ title: 'Steel Rod' }), 'data:old')
+  it('serves uploaded images as stored data URLs', () => {
+    saveMockImage('https://mock-s3.local/products/a.png', 'data:image/jpeg;base64,abc')
 
-    const updated = updateMockProduct(4, fields({ title: 'Steel Rod 12 mm' }), undefined)
-
-    expect(updated).toMatchObject({ id: 4, title: 'Steel Rod 12 mm', thumbnail: 'data:old' })
-    expect(findMockProduct(4)?.title).toBe('Steel Rod 12 mm')
-  })
-
-  it('returns undefined when updating an unknown id', () => {
-    expect(updateMockProduct(999, fields({ title: 'x' }), undefined)).toBeUndefined()
+    expect(mockImageSrc('https://mock-s3.local/products/a.png')).toBe('data:image/jpeg;base64,abc')
+    expect(mockImageSrc('https://example.com/b.png')).toBe('https://example.com/b.png')
   })
 })

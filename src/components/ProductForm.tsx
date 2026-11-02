@@ -27,6 +27,7 @@ export interface ProductFormProps {
   mode: 'add' | 'edit'
   initialValues?: ProductFormValues | undefined
   currentImageUrl?: string | undefined
+  currentBrochureUrl?: string | undefined
   isSubmitting: boolean
   submitError?: string | undefined
   onSubmit: (values: ProductFormValues, files: ProductFiles) => void
@@ -39,6 +40,7 @@ export default function ProductForm({
   mode,
   initialValues,
   currentImageUrl,
+  currentBrochureUrl,
   isSubmitting,
   submitError,
   onSubmit,
@@ -165,7 +167,11 @@ export default function ProductForm({
           </FormSection>
 
           <FormSection title="Upload Product Brochure (optional)">
-            <BrochureUpload file={brochure} onChange={setBrochure} />
+            <BrochureUpload
+              file={brochure}
+              onChange={setBrochure}
+              currentUrl={currentBrochureUrl}
+            />
           </FormSection>
         </div>
       </div>

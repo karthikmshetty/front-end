@@ -8,23 +8,32 @@ export const UNEXPECTED_RESPONSE = {
   message: 'Unexpected response from the server',
 } as const
 
+// Login still uses DummyJSON; products use the team's own API.
+export type ApiBaseUrl = 'VITE_API_BASE_URL' | 'VITE_PRODUCTS_API_URL'
+
+const NETWORK_ERROR = 'Network error. Check your connection and try again.'
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
 const readMessage = (body: unknown): string | undefined =>
   isRecord(body) && typeof body['message'] === 'string' ? body['message'] : undefined
 
-export async function request(path: string, init: RequestInit): Promise<ApiResult<unknown>> {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL
+export async function request(
+  path: string,
+  init: RequestInit,
+  baseUrlVar: ApiBaseUrl = 'VITE_API_BASE_URL',
+): Promise<ApiResult<unknown>> {
+  const baseUrl = import.meta.env[baseUrlVar]
   if (baseUrl === undefined || baseUrl === '') {
-    return { error: true, message: 'VITE_API_BASE_URL is not configured' }
+    return { error: true, message: `${baseUrlVar} is not configured` }
   }
 
   let response: Response
   try {
     response = await fetch(`${baseUrl}${path}`, init)
   } catch {
-    return { error: true, message: 'Network error. Check your connection and try again.' }
+    return { error: true, message: NETWORK_ERROR }
   }
 
   const body: unknown = await response.json().catch(() => null)
@@ -38,9 +47,35 @@ export async function request(path: string, init: RequestInit): Promise<ApiResul
   return { error: false, data: body }
 }
 
-export const postJson = (path: string, payload: unknown): Promise<ApiResult<unknown>> =>
-  request(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+export const postJson = (
+  path: string,
+  payload: unknown,
+  baseUrlVar: ApiBaseUrl = 'VITE_API_BASE_URL',
+): Promise<ApiResult<unknown>> =>
+  request(
+    path,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    baseUrlVar,
+  )
+
+// PUTs a file to a presigned URL (S3). No auth header: the signature is in the URL, and the
+// Content-Type must match the one the URL was signed for.
+export async function uploadFile(uploadUrl: string, file: File): Promise<ApiResult<null>> {
+  let response: Response
+  try {
+    response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type },
+      body: file,
+    })
+  } catch {
+    return { error: true, message: NETWORK_ERROR }
+  }
+  return response.ok
+    ? { error: false, data: null }
+    : { error: true, status: response.status, message: `Could not upload ${file.name}.` }
+}

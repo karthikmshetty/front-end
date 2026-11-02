@@ -4,7 +4,9 @@ import { EMPTY_PRODUCT_VALUES } from './productOptions.ts'
 import {
   BROCHURE_MAX_BYTES,
   hasErrors,
+  PRODUCT_DESCRIPTION_MAX_LENGTH,
   PRODUCT_IMAGE_MAX_BYTES,
+  PRODUCT_NAME_MAX_LENGTH,
   validateAmount,
   validateBrochureFile,
   validateConfirmPassword,
@@ -186,11 +188,29 @@ describe('validateProductForm', () => {
   })
 })
 
+describe('product text limits from the API', () => {
+  it('rejects a name over 100 or a description over 1000 characters', () => {
+    const errors = validateProductForm({
+      ...EMPTY_PRODUCT_VALUES,
+      name: 'x'.repeat(PRODUCT_NAME_MAX_LENGTH + 1),
+      description: 'y'.repeat(PRODUCT_DESCRIPTION_MAX_LENGTH + 1),
+    })
+
+    expect(errors.name).toBe('Product name must be at most 100 characters')
+    expect(errors.description).toBe('Product description must be at most 1000 characters')
+  })
+})
+
 describe('validateBrochureFile', () => {
-  it('allows up to 25 MB of any file type', () => {
-    expect(validateBrochureFile({ size: BROCHURE_MAX_BYTES })).toBeUndefined()
-    expect(validateBrochureFile({ size: BROCHURE_MAX_BYTES + 1 })).toBe(
+  it('accepts a PDF up to 25 MB only', () => {
+    expect(
+      validateBrochureFile({ type: 'application/pdf', size: BROCHURE_MAX_BYTES }),
+    ).toBeUndefined()
+    expect(validateBrochureFile({ type: 'application/pdf', size: BROCHURE_MAX_BYTES + 1 })).toBe(
       'Brochure must be 25 MB or smaller',
+    )
+    expect(validateBrochureFile({ type: 'image/png', size: 100 })).toBe(
+      'Upload the brochure as a PDF',
     )
   })
 })

@@ -8,6 +8,9 @@ import App from './App.tsx'
 import { saveToken } from './helpers/tokenStorage.ts'
 
 const API_BASE_URL = 'https://api.test'
+const PRODUCTS_API_URL = 'https://products.test'
+const S3_UPLOAD_URL = 'https://s3.test/upload/products/image.png'
+export const S3_FILE_URL = 'https://s3.test/products/image.png'
 
 export const EMILY = {
   id: 1,
@@ -18,7 +21,40 @@ export const EMILY = {
   image: '',
 }
 
-export const EMPTY_PRODUCT_LIST = { products: [], total: 0, skip: 0, limit: 0 }
+// A product as the products API returns it (snake_case, string id).
+export const API_PRODUCT = {
+  id: 'e3fd6d01-87a8-4b81-8505-e6a6982b7ea0',
+  item_code: 'product',
+  name: 'RCC Cement',
+  name_lowercase: 'rcc cement',
+  category: 'Construction',
+  description: 'Ordinary Portland cement',
+  rate_per_unit: 200,
+  market_selling_price: 300,
+  uom: 'Per Bag',
+  eco_friendly: false,
+  handle_with_care: false,
+  images: [] as string[],
+  created_at: '2026-10-27T13:36:15.141Z',
+  updated_at: '2026-10-27T13:36:15.141Z',
+}
+
+// GET /products response body.
+export const productList = (products: readonly unknown[]): unknown => ({
+  message: products.length === 0 ? 'No results found' : 'Products retrieved successfully',
+  data: products,
+  total_count: products.length,
+})
+
+// Routes for the two-step image upload: presigned URL from the API, then PUT to "S3".
+export const IMAGE_UPLOAD_ROUTES: MockRoutes = {
+  'POST /products/upload-url': () =>
+    jsonResponse({
+      message: 'Upload URL created successfully',
+      data: { upload_url: S3_UPLOAD_URL, file_url: S3_FILE_URL, key: 'products/image.png' },
+    }),
+  [`PUT ${S3_UPLOAD_URL}`]: () => new Response(null, { status: 200 }),
+}
 
 export const mockFetch = vi.fn<typeof fetch>()
 
@@ -29,6 +65,7 @@ export const jsonResponse = (body: unknown, status = 200): Response =>
 export function installApiMocks(): void {
   beforeEach(() => {
     vi.stubEnv('VITE_API_BASE_URL', API_BASE_URL)
+    vi.stubEnv('VITE_PRODUCTS_API_URL', PRODUCTS_API_URL)
     vi.stubGlobal('fetch', mockFetch)
   })
   afterEach(() => {
@@ -39,12 +76,12 @@ export function installApiMocks(): void {
   })
 }
 
-// Keys look like 'GET /auth/me' or 'POST /products/add'.
+// Keys look like 'GET /auth/me' or 'POST /products' (both API base URLs are stripped).
 export type MockRoutes = Record<string, () => Response | Promise<Response>>
 
 const requestKey = (input: RequestInfo | URL, init?: RequestInit): string => {
   const url = input instanceof Request ? input.url : input.toString()
-  return `${init?.method ?? 'GET'} ${url.replace(API_BASE_URL, '')}`
+  return `${init?.method ?? 'GET'} ${url.replace(API_BASE_URL, '').replace(PRODUCTS_API_URL, '')}`
 }
 
 export function mockApi(routes: MockRoutes): void {
@@ -57,9 +94,15 @@ export function mockApi(routes: MockRoutes): void {
   })
 }
 
-// The options of the first request matching e.g. 'POST /products/add'.
+// The options of the first request matching e.g. 'POST /products'.
 export function findRequest(key: string): RequestInit | undefined {
   return mockFetch.mock.calls.find(([input, init]) => requestKey(input, init) === key)?.[1]
+}
+
+// The parsed JSON body of the first request matching `key` (undefined if none or not JSON text).
+export function requestJson(key: string): unknown {
+  const body = findRequest(key)?.body
+  return typeof body === 'string' ? JSON.parse(body) : undefined
 }
 
 export function renderAt(path: string): void {
@@ -73,7 +116,7 @@ export async function renderLoggedInAt(path: string, routes: MockRoutes = {}): P
   mockApi({
     'GET /auth/me': () => jsonResponse(EMILY),
     // The products page loads the list; empty unless a test overrides it.
-    'GET /products?limit=0': () => jsonResponse(EMPTY_PRODUCT_LIST),
+    'GET /products?page_size=100': () => jsonResponse(productList([])),
     ...routes,
   })
   renderAt(path)

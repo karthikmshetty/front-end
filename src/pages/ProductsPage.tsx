@@ -47,7 +47,8 @@ export default function ProductsPage(_props: ProductsPageProps): React.JSX.Eleme
           title={`Product ${saved.action === 'added' ? 'Added' : 'Updated'} Successfully`}
           onClose={closeModal}
         >
-          It was saved as product #{saved.id}.
+          &ldquo;{saved.name}&rdquo; was {saved.action === 'added' ? 'added to' : 'updated in'} your
+          product list.
         </SuccessModal>
       )}
 
