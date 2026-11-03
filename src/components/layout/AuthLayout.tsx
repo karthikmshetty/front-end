@@ -19,7 +19,7 @@ export interface AuthLayoutProps {
   footer: React.ReactNode
 }
 
-// Shared frame for the login and signup pages (Figma "Login" / "Sign up" frames).
+// Frame for the login page (Figma "Login" frame; the "Sign up" frame is not built: no self sign-up).
 export default function AuthLayout({
   eyebrow,
   title,

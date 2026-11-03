@@ -24,8 +24,8 @@ use tags so lists refetch after add/edit. Ask before adding other state librarie
 ## Products API
 
 Products come from the team's API (back-end repo `part-4-serverless/api-design`, contract in
-`services/products/docs/products-swagger.yaml`), base URL `VITE_PRODUCTS_API_URL`. Login still
-uses DummyJSON (`VITE_API_BASE_URL`). `productService.ts` is the only file that knows the API's
+`services/products/docs/products-swagger.yaml`), base URL `VITE_PRODUCTS_API_URL`.
+`productService.ts` is the only file that knows the API's
 snake_case fields and `{ message, data }` envelope; it maps them to the app's `Product` type.
 
 - Images: `POST /products/upload-url` → `PUT` the file to `upload_url` (via `uploadFile` in
@@ -34,6 +34,18 @@ snake_case fields and `{ message, data }` envelope; it maps them to the app's `P
 - Edit uses `GET` and `PUT /products/{id}`. PUT is a full replace, so unchanged images and the
   brochure URL are sent again. Brochures upload like images with content type `application/pdf`.
 - `DELETE /products/{id}` exists in the API but has no UI yet.
+
+## Login (Cognito)
+
+Login uses the Cognito user pool from the back-end `resources` stack (`VITE_COGNITO_USER_POOL_ID`,
+`VITE_COGNITO_CLIENT_ID`) through Amplify (`aws-amplify/auth`). Only `authService.ts` imports
+Amplify; it is the one exception to "all HTTP goes through `apiClient.ts`". Amplify stores and
+refreshes the tokens itself, so the app keeps no token of its own.
+
+- Username + password (SRP). No sign up: an admin creates users (back-end README, "Users").
+- The products API does not check the login yet.
+- Tests never call Cognito: `setupTests.ts` mocks `aws-amplify/auth`; use `cognitoSession()` and
+  the `mockSignIn` / `mockFetchAuthSession` helpers in `testUtils.ts`.
 
 ## Fake API (offline development)
 

@@ -1,23 +1,12 @@
 // Pure validation rules: each returns an error message, or undefined when the value is valid.
 
 export const USERNAME_MIN_LENGTH = 3
-export const PASSWORD_MIN_LENGTH = 8
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export type FormErrors<T> = Partial<Record<keyof T, string | undefined>>
 
 export interface LoginValues {
   username: string
   password: string
-}
-
-export interface SignupValues {
-  firstName: string
-  lastName: string
-  email: string
-  password: string
-  confirmPassword: string
 }
 
 const isBlank = (value: string): boolean => value.trim() === ''
@@ -36,51 +25,11 @@ export function validateUsername(value: string): string | undefined {
   return undefined
 }
 
-export function validateEmail(value: string): string | undefined {
-  if (isBlank(value)) {
-    return 'Email is required'
-  }
-  if (!EMAIL_PATTERN.test(value.trim())) {
-    return 'Enter a valid email address'
-  }
-  return undefined
-}
-
-export function validateNewPassword(value: string): string | undefined {
-  if (value === '') {
-    return 'Password is required'
-  }
-  if (value.length < PASSWORD_MIN_LENGTH) {
-    return `Password must be at least ${String(PASSWORD_MIN_LENGTH)} characters`
-  }
-  return undefined
-}
-
-export function validateConfirmPassword(password: string, confirm: string): string | undefined {
-  if (confirm === '') {
-    return 'Please confirm your password'
-  }
-  if (confirm !== password) {
-    return 'Passwords do not match'
-  }
-  return undefined
-}
-
 export function validateLoginForm(values: LoginValues): FormErrors<LoginValues> {
   return {
     username: validateUsername(values.username),
-    // Login only checks presence: length rules belong to signup, not to existing passwords.
+    // Login only checks presence: the password rules live in the Cognito pool.
     password: values.password === '' ? 'Password is required' : undefined,
-  }
-}
-
-export function validateSignupForm(values: SignupValues): FormErrors<SignupValues> {
-  return {
-    firstName: validateRequired(values.firstName, 'First name'),
-    lastName: validateRequired(values.lastName, 'Last name'),
-    email: validateEmail(values.email),
-    password: validateNewPassword(values.password),
-    confirmPassword: validateConfirmPassword(values.password, values.confirmPassword),
   }
 }
 

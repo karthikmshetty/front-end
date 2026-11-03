@@ -11,7 +11,6 @@ import EditProductPage from './pages/EditProductPage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import NotFoundPage from './pages/NotFoundPage.tsx'
 import ProductsPage from './pages/ProductsPage.tsx'
-import SignupPage from './pages/SignupPage.tsx'
 import { makeStore } from './store/store.ts'
 
 export type AppProps = Record<string, never>
@@ -27,7 +26,6 @@ export default function App(_props: AppProps): React.JSX.Element {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<DashboardPage />} />

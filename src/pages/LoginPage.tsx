@@ -1,6 +1,6 @@
 import type { SubmitEvent } from 'react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import Button from '../components/Button.tsx'
 import Input from '../components/Input.tsx'
@@ -13,7 +13,8 @@ const INITIAL_VALUES: LoginValues = { username: '', password: '' }
 
 export type LoginPageProps = Record<string, never>
 
-// The Figma design logs in with an emailed code; DummyJSON only supports username + password.
+// The Figma design logs in with an emailed code; the Cognito pool uses username + password.
+// There is no sign up: an admin creates users (back-end README, "Users (Cognito)").
 export default function LoginPage(_props: LoginPageProps): React.JSX.Element {
   const navigate = useNavigate()
   const { login } = useAuth()
@@ -54,14 +55,7 @@ export default function LoginPage(_props: LoginPageProps): React.JSX.Element {
       eyebrow="Welcome back"
       title="Log in to Old Town Market"
       description="Your business is right where you left it. Enter your username and password to continue."
-      footer={
-        <>
-          New to Old Town Market?{' '}
-          <Link to="/signup" className="font-medium text-primary hover:underline">
-            Sign up
-          </Link>
-        </>
-      }
+      footer="No account yet? Ask your admin to create one."
     >
       <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
         <Input

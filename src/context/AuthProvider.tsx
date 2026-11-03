@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { clearToken, getToken, saveToken } from '../helpers/tokenStorage.ts'
 import type { ApiResult } from '../shared/apiClient.ts'
-import type { LoginData, LoginInput } from '../services/authService.ts'
+import type { AuthUser, LoginInput } from '../services/authService.ts'
 import * as authService from '../services/authService.ts'
 import type { AuthContextValue, AuthState } from './AuthContext.ts'
 import { AuthContext } from './AuthContext.ts'
@@ -12,45 +11,33 @@ export interface AuthProviderProps {
 }
 
 export default function AuthProvider({ children }: AuthProviderProps): React.JSX.Element {
-  const [state, setState] = useState<AuthState>(() =>
-    getToken() === null ? { status: 'anonymous' } : { status: 'checking' },
-  )
+  const [state, setState] = useState<AuthState>({ status: 'checking' })
 
-  // Restore the session after a page refresh: the token survives in localStorage, the user does not.
+  // Restore the session after a page refresh: Amplify keeps the Cognito tokens in localStorage.
   useEffect(() => {
-    const token = getToken()
-    if (token === null) {
-      return undefined
-    }
     let cancelled = false
-    void authService.getCurrentUser(token).then((result) => {
-      if (cancelled) {
-        return
+    void authService.getCurrentUser().then((result) => {
+      if (!cancelled) {
+        setState(
+          result.error ? { status: 'anonymous' } : { status: 'authenticated', user: result.data },
+        )
       }
-      if (result.error) {
-        clearToken()
-        setState({ status: 'anonymous' })
-        return
-      }
-      setState({ status: 'authenticated', user: result.data })
     })
     return () => {
       cancelled = true
     }
   }, [])
 
-  const login = useCallback(async (input: LoginInput): Promise<ApiResult<LoginData>> => {
+  const login = useCallback(async (input: LoginInput): Promise<ApiResult<AuthUser>> => {
     const result = await authService.login(input)
     if (!result.error) {
-      const { accessToken, refreshToken: _refreshToken, ...user } = result.data
-      saveToken(accessToken)
-      setState({ status: 'authenticated', user })
+      setState({ status: 'authenticated', user: result.data })
     }
     return result
   }, [])
 
   const logout = useCallback((): void => {
-    clearToken()
+    void authService.logout()
     setState({ status: 'anonymous' })
   }, [])
 

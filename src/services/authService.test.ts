@@ -1,135 +1,133 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { getCurrentUser, login, signup } from './authService.ts'
+import {
+  cognitoSession,
+  installApiMocks,
+  mockFetchAuthSession,
+  mockSignIn,
+  mockSignOut,
+} from '../testUtils.ts'
+import { getCurrentUser, login, logout } from './authService.ts'
 
-const mockFetch = vi.fn<typeof fetch>()
+const SIGNED_IN = { isSignedIn: true, nextStep: { signInStep: 'DONE' } } as const
 
-const jsonResponse = (body: unknown, status: number): Response =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+const EMILY = {
+  id: '7f1c2a9e-0000-4000-8000-000000000001',
+  username: 'emilys',
+  email: 'emily@example.com',
+  firstName: 'Emily',
+  lastName: 'Johnson',
+}
+
+const namedError = (name: string, message: string): Error =>
+  Object.assign(new Error(message), { name })
 
 describe('authService', () => {
-  beforeEach(() => {
-    vi.stubEnv('VITE_API_BASE_URL', 'https://api.test')
-    vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
-    mockFetch.mockReset()
-  })
+  installApiMocks()
 
   describe('login', () => {
-    it('posts the credentials and returns the user with tokens', async () => {
-      mockFetch.mockResolvedValue(
-        jsonResponse(
-          {
-            id: 1,
-            username: 'emilys',
-            firstName: 'Emily',
-            accessToken: 'token-1',
-            refreshToken: 'r',
-          },
-          200,
-        ),
-      )
+    it('signs in to Cognito and reads the user from the ID token', async () => {
+      mockSignIn.mockResolvedValue(SIGNED_IN)
+      mockFetchAuthSession.mockResolvedValue(cognitoSession())
 
-      const result = await login({ username: ' emilys ', password: 'emilyspass' })
+      const result = await login({ username: ' emilys ', password: 'Emilys-pass1' })
 
-      expect(result.error).toBe(false)
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.test/auth/login',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ username: 'emilys', password: 'emilyspass' }),
-        }),
-      )
+      expect(result).toEqual({ error: false, data: EMILY })
+      expect(mockSignIn).toHaveBeenCalledWith({ username: 'emilys', password: 'Emilys-pass1' })
     })
 
-    it('returns the server message on invalid credentials', async () => {
-      mockFetch.mockResolvedValue(jsonResponse({ message: 'Invalid credentials' }, 400))
+    it("returns Cognito's message on wrong credentials", async () => {
+      mockSignIn.mockRejectedValue(
+        namedError('NotAuthorizedException', 'Incorrect username or password.'),
+      )
 
-      const result = await login({ username: 'x', password: 'y' })
-
-      expect(result).toEqual({ error: true, status: 400, message: 'Invalid credentials' })
+      expect(await login({ username: 'x', password: 'y' })).toEqual({
+        error: true,
+        message: 'Incorrect username or password.',
+      })
     })
 
-    it('returns a network error when the request fails', async () => {
-      mockFetch.mockRejectedValue(new TypeError('Failed to fetch'))
+    it('returns the network error when Cognito cannot be reached', async () => {
+      mockSignIn.mockRejectedValue(namedError('NetworkError', 'A network error has occurred.'))
 
-      const result = await login({ username: 'x', password: 'y' })
-
-      expect(result).toEqual({
+      expect(await login({ username: 'x', password: 'y' })).toEqual({
         error: true,
         message: 'Network error. Check your connection and try again.',
       })
     })
 
-    it('fails clearly when the base URL is missing', async () => {
-      vi.stubEnv('VITE_API_BASE_URL', '')
+    it('ends a leftover session and signs in again', async () => {
+      mockSignIn
+        .mockRejectedValueOnce(namedError('UserAlreadyAuthenticatedException', 'Already signed in'))
+        .mockResolvedValueOnce(SIGNED_IN)
+      mockFetchAuthSession.mockResolvedValue(cognitoSession())
 
-      const result = await login({ username: 'x', password: 'y' })
+      const result = await login({ username: 'emilys', password: 'Emilys-pass1' })
 
-      expect(result).toEqual({ error: true, message: 'VITE_API_BASE_URL is not configured' })
-      expect(mockFetch).not.toHaveBeenCalled()
+      expect(result.error).toBe(false)
+      expect(mockSignOut).toHaveBeenCalledTimes(1)
+      expect(mockSignIn).toHaveBeenCalledTimes(2)
+    })
+
+    it('explains when the account needs a step this app does not support', async () => {
+      mockSignIn.mockResolvedValue({
+        isSignedIn: false,
+        nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+      })
+
+      const result = await login({ username: 'new', password: 'Temp-pass1' })
+
+      expect(result).toEqual({
+        error: true,
+        message: expect.stringContaining('Ask an admin to set a permanent password') as string,
+      })
+      expect(mockFetchAuthSession).not.toHaveBeenCalled()
     })
   })
 
   describe('getCurrentUser', () => {
-    it('sends the token as a bearer header', async () => {
-      mockFetch.mockResolvedValue(
-        jsonResponse({ id: 1, username: 'emilys', firstName: 'Emily' }, 200),
+    it('uses the username when the user has no first name', async () => {
+      mockFetchAuthSession.mockResolvedValue(
+        cognitoSession({ sub: 'u-2', 'cognito:username': 'asha' }),
       )
 
-      const result = await getCurrentUser('token-1')
-
-      expect(result).toEqual({
+      expect(await getCurrentUser()).toEqual({
         error: false,
-        data: { id: 1, username: 'emilys', firstName: 'Emily' },
+        data: { id: 'u-2', username: 'asha', email: '', firstName: 'asha', lastName: '' },
       })
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.test/auth/me',
-        expect.objectContaining({ headers: { Authorization: 'Bearer token-1' } }),
-      )
     })
 
-    it('returns the status for an expired token', async () => {
-      mockFetch.mockResolvedValue(jsonResponse({ message: 'Token Expired!' }, 401))
-
-      const result = await getCurrentUser('old-token')
-
-      expect(result).toEqual({ error: true, status: 401, message: 'Token Expired!' })
+    it('reports "not logged in" when there is no saved session', async () => {
+      expect(await getCurrentUser()).toEqual({
+        error: true,
+        status: 401,
+        message: 'Not logged in',
+      })
     })
   })
 
-  describe('signup', () => {
-    it('posts the new user to /users/add', async () => {
-      mockFetch.mockResolvedValue(
-        jsonResponse({ id: 209, firstName: 'Asha', lastName: 'Rao', email: 'a@b.com' }, 201),
-      )
+  describe('logout', () => {
+    it('signs out of Cognito and ignores a failed revoke', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      mockSignOut.mockRejectedValue(new Error('offline'))
 
-      const result = await signup({
-        firstName: 'Asha',
-        lastName: 'Rao',
-        email: 'a@b.com',
-        password: 'secret123',
-      })
+      await logout()
 
-      expect(result).toEqual({
-        error: false,
-        data: { id: 209, firstName: 'Asha', lastName: 'Rao', email: 'a@b.com' },
-      })
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.test/users/add',
-        expect.objectContaining({
-          body: JSON.stringify({
-            firstName: 'Asha',
-            lastName: 'Rao',
-            email: 'a@b.com',
-            password: 'secret123',
-          }),
-        }),
-      )
+      expect(mockSignOut).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalled()
+      warn.mockRestore()
+    })
+  })
+
+  it('fails clearly when the Cognito settings are missing', async () => {
+    vi.stubEnv('VITE_COGNITO_CLIENT_ID', '')
+    // Fresh copy of the module: the one above is already configured.
+    vi.resetModules()
+    const fresh = await import('./authService.ts')
+
+    expect(await fresh.login({ username: 'x', password: 'y' })).toEqual({
+      error: true,
+      message: 'VITE_COGNITO_CLIENT_ID is not configured',
     })
   })
 })

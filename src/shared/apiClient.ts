@@ -8,10 +8,10 @@ export const UNEXPECTED_RESPONSE = {
   message: 'Unexpected response from the server',
 } as const
 
-// Login still uses DummyJSON; products use the team's own API.
-export type ApiBaseUrl = 'VITE_API_BASE_URL' | 'VITE_PRODUCTS_API_URL'
+// Login goes to Cognito through Amplify (authService.ts), not through this client.
+export type ApiBaseUrl = 'VITE_PRODUCTS_API_URL'
 
-const NETWORK_ERROR = 'Network error. Check your connection and try again.'
+export const NETWORK_ERROR = 'Network error. Check your connection and try again.'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
@@ -22,7 +22,7 @@ const readMessage = (body: unknown): string | undefined =>
 export async function request(
   path: string,
   init: RequestInit,
-  baseUrlVar: ApiBaseUrl = 'VITE_API_BASE_URL',
+  baseUrlVar: ApiBaseUrl = 'VITE_PRODUCTS_API_URL',
 ): Promise<ApiResult<unknown>> {
   const baseUrl = import.meta.env[baseUrlVar]
   if (baseUrl === undefined || baseUrl === '') {
@@ -50,7 +50,7 @@ export async function request(
 export const postJson = (
   path: string,
   payload: unknown,
-  baseUrlVar: ApiBaseUrl = 'VITE_API_BASE_URL',
+  baseUrlVar: ApiBaseUrl = 'VITE_PRODUCTS_API_URL',
 ): Promise<ApiResult<unknown>> =>
   request(
     path,

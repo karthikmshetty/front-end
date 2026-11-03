@@ -2,12 +2,12 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import { getToken, saveToken } from './helpers/tokenStorage.ts'
 import {
-  EMILY,
+  cognitoSession,
   installApiMocks,
-  jsonResponse,
-  mockFetch,
+  mockFetchAuthSession,
+  mockSignIn,
+  mockSignOut,
   renderAt,
   renderLoggedInAt,
 } from './testUtils.ts'
@@ -25,15 +25,11 @@ describe('App', () => {
       expect(window.location.pathname).toBe('/login')
     })
 
-    it('links between login and signup', async () => {
-      const user = userEvent.setup()
+    it('has no sign up: users come from an admin', () => {
       renderAt('/login')
 
-      await user.click(screen.getByRole('link', { name: 'Sign up' }))
-      expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument()
-
-      await user.click(screen.getByRole('link', { name: 'Log in' }))
-      expect(screen.getByRole('heading', LOGIN_HEADING)).toBeInTheDocument()
+      expect(screen.getByText('No account yet? Ask your admin to create one.')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Sign up' })).not.toBeInTheDocument()
     })
 
     it('shows the not found page for unknown paths', () => {
@@ -44,15 +40,19 @@ describe('App', () => {
   })
 
   describe('auth', () => {
-    it('redirects protected pages to /login when logged out', () => {
+    it('redirects protected pages to /login when logged out', async () => {
       renderAt('/products')
 
-      expect(screen.getByRole('heading', LOGIN_HEADING)).toBeInTheDocument()
+      expect(await screen.findByRole('heading', LOGIN_HEADING)).toBeInTheDocument()
       expect(window.location.pathname).toBe('/login')
     })
 
-    it('shows the server error when login fails', async () => {
-      mockFetch.mockResolvedValue(jsonResponse({ message: 'Invalid credentials' }, 400))
+    it('shows the Cognito error when login fails', async () => {
+      mockSignIn.mockRejectedValue(
+        Object.assign(new Error('Incorrect username or password.'), {
+          name: 'NotAuthorizedException',
+        }),
+      )
       const user = userEvent.setup()
       renderAt('/login')
 
@@ -60,50 +60,41 @@ describe('App', () => {
       await user.type(screen.getByLabelText('Password'), 'wrong')
       await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials')
-      expect(getToken()).toBeNull()
+      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect username or password.')
+      expect(window.location.pathname).toBe('/login')
     })
 
     it('logs in, greets the user and logs out', async () => {
-      mockFetch.mockResolvedValue(
-        jsonResponse({ ...EMILY, accessToken: 'token-1', refreshToken: 'refresh-1' }),
-      )
+      mockSignIn.mockResolvedValue({ isSignedIn: true, nextStep: { signInStep: 'DONE' } })
       const user = userEvent.setup()
       renderAt('/login')
+      await screen.findByRole('heading', LOGIN_HEADING)
 
+      // From now on Amplify has a session to return.
+      mockFetchAuthSession.mockResolvedValue(cognitoSession())
       await user.type(screen.getByLabelText('Username'), 'emilys')
-      await user.type(screen.getByLabelText('Password'), 'emilyspass')
+      await user.type(screen.getByLabelText('Password'), 'Emilys-pass1')
       await user.click(screen.getByRole('button', { name: 'Log in' }))
 
       expect(
         await screen.findByRole('heading', { name: 'Welcome back, Emily' }),
       ).toBeInTheDocument()
-      expect(getToken()).toBe('token-1')
+      expect(mockSignIn).toHaveBeenCalledWith({ username: 'emilys', password: 'Emilys-pass1' })
 
       await user.click(screen.getByRole('button', { name: 'Logout' }))
 
       expect(screen.getByRole('heading', LOGIN_HEADING)).toBeInTheDocument()
-      expect(getToken()).toBeNull()
+      expect(mockSignOut).toHaveBeenCalledTimes(1)
     })
 
-    it('restores the session from a saved token', async () => {
-      saveToken('token-1')
-      mockFetch.mockResolvedValue(jsonResponse(EMILY))
+    it('restores a saved Cognito session', async () => {
+      mockFetchAuthSession.mockResolvedValue(cognitoSession())
       renderAt('/dashboard')
 
       expect(screen.getByText('Checking your session…')).toBeInTheDocument()
       expect(
         await screen.findByRole('heading', { name: 'Welcome back, Emily' }),
       ).toBeInTheDocument()
-    })
-
-    it('clears an expired token and goes to login', async () => {
-      saveToken('old-token')
-      mockFetch.mockResolvedValue(jsonResponse({ message: 'Token Expired!' }, 401))
-      renderAt('/dashboard')
-
-      expect(await screen.findByRole('heading', LOGIN_HEADING)).toBeInTheDocument()
-      expect(getToken()).toBeNull()
     })
   })
 

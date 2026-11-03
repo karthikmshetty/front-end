@@ -7,7 +7,7 @@ export interface InputProps {
   value: string
   onChange: (value: string) => void
   type?: 'text' | 'email' | 'password'
-  // 'stacked': label above (login/signup). 'floating': label inside the border (product form).
+  // 'stacked': label above (login). 'floating': label inside the border (product form).
   variant?: 'stacked' | 'floating'
   multiline?: boolean
   inputMode?: 'text' | 'decimal'

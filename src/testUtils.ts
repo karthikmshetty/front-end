@@ -1,25 +1,36 @@
 // Shared helpers for tests that render the whole app against a fake API.
 import { render, screen } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
+import type { AuthSession, JWT } from 'aws-amplify/auth'
+import { fetchAuthSession, signIn, signOut } from 'aws-amplify/auth'
 import { createElement } from 'react'
 import { afterEach, beforeEach, vi } from 'vitest'
 
 import App from './App.tsx'
-import { saveToken } from './helpers/tokenStorage.ts'
 
-const API_BASE_URL = 'https://api.test'
 const PRODUCTS_API_URL = 'https://products.test'
 const S3_UPLOAD_URL = 'https://s3.test/upload/products/image.png'
 export const S3_FILE_URL = 'https://s3.test/products/image.png'
 
-export const EMILY = {
-  id: 1,
-  username: 'emilys',
+// ID token claims of a Cognito user (setupTests.ts replaces aws-amplify/auth with mocks).
+export const EMILY_CLAIMS: JWT['payload'] = {
+  sub: '7f1c2a9e-0000-4000-8000-000000000001',
+  'cognito:username': 'emilys',
   email: 'emily@example.com',
-  firstName: 'Emily',
-  lastName: 'Johnson',
-  image: '',
+  given_name: 'Emily',
+  family_name: 'Johnson',
 }
+
+const jwt = (payload: JWT['payload']): JWT => ({ payload, toString: () => 'jwt' })
+
+// What fetchAuthSession returns: a logged-in session, or {} when nobody is logged in.
+export const cognitoSession = (claims: JWT['payload'] = EMILY_CLAIMS): AuthSession => ({
+  tokens: { idToken: jwt(claims), accessToken: jwt({}) },
+})
+
+export const mockSignIn = vi.mocked(signIn)
+export const mockSignOut = vi.mocked(signOut)
+export const mockFetchAuthSession = vi.mocked(fetchAuthSession)
 
 // A product as the products API returns it (snake_case, string id).
 export const API_PRODUCT = {
@@ -61,27 +72,33 @@ export const mockFetch = vi.fn<typeof fetch>()
 export const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-// Call inside a describe(): every test gets the fake API and a clean localStorage.
+// Call inside a describe(): every test gets the fake API, nobody logged in and a clean localStorage.
 export function installApiMocks(): void {
   beforeEach(() => {
-    vi.stubEnv('VITE_API_BASE_URL', API_BASE_URL)
+    vi.stubEnv('VITE_COGNITO_USER_POOL_ID', 'ap-south-1_test')
+    vi.stubEnv('VITE_COGNITO_CLIENT_ID', 'test-client')
     vi.stubEnv('VITE_PRODUCTS_API_URL', PRODUCTS_API_URL)
     vi.stubGlobal('fetch', mockFetch)
+    mockFetchAuthSession.mockResolvedValue({})
+    mockSignOut.mockResolvedValue()
   })
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     mockFetch.mockReset()
+    mockSignIn.mockReset()
+    mockSignOut.mockReset()
+    mockFetchAuthSession.mockReset()
     localStorage.clear()
   })
 }
 
-// Keys look like 'GET /auth/me' or 'POST /products' (both API base URLs are stripped).
+// Keys look like 'GET /products' or 'POST /products' (the API base URL is stripped).
 export type MockRoutes = Record<string, () => Response | Promise<Response>>
 
 const requestKey = (input: RequestInfo | URL, init?: RequestInit): string => {
   const url = input instanceof Request ? input.url : input.toString()
-  return `${init?.method ?? 'GET'} ${url.replace(API_BASE_URL, '').replace(PRODUCTS_API_URL, '')}`
+  return `${init?.method ?? 'GET'} ${url.replace(PRODUCTS_API_URL, '')}`
 }
 
 export function mockApi(routes: MockRoutes): void {
@@ -110,11 +127,10 @@ export function renderAt(path: string): void {
   render(createElement(App))
 }
 
-// Starts on a protected page with a saved token that /auth/me accepts.
+// Starts on a protected page with Emily's Cognito session already saved.
 export async function renderLoggedInAt(path: string, routes: MockRoutes = {}): Promise<void> {
-  saveToken('token-1')
+  mockFetchAuthSession.mockResolvedValue(cognitoSession())
   mockApi({
-    'GET /auth/me': () => jsonResponse(EMILY),
     // The products page loads the list; empty unless a test overrides it.
     'GET /products?page_size=100': () => jsonResponse(productList([])),
     ...routes,

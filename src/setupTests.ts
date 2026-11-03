@@ -2,7 +2,14 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup } from '@testing-library/react'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
+
+// No test talks to Cognito: tests set what these return (helpers in testUtils.ts).
+vi.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+}))
 
 // jsdom has no object URLs; ImageUpload creates them for previews.
 URL.createObjectURL = (): string => 'blob:preview'

@@ -17,7 +17,7 @@ if (rootElement === null) {
 // Fake product API (src/mocks) until the real back-end exists. Dev only; never in a build.
 if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCKS === 'true') {
   const { worker } = await import('./mocks/browser.ts')
-  // Requests without a handler (login, /auth/me) still go to the real server.
+  // Requests without a handler (Cognito login) still go to the real server.
   await worker.start({ onUnhandledRequest: 'bypass' })
 }
 

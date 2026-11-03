@@ -9,15 +9,11 @@ import {
   PRODUCT_NAME_MAX_LENGTH,
   validateAmount,
   validateBrochureFile,
-  validateConfirmPassword,
-  validateEmail,
   validateImageFile,
   validateLoginForm,
-  validateNewPassword,
   validatePercentage,
   validateProductForm,
   validateRequired,
-  validateSignupForm,
   validateUsername,
 } from './validators.ts'
 
@@ -40,31 +36,6 @@ describe('validateUsername', () => {
   })
 })
 
-describe('validateEmail', () => {
-  it('requires a valid email address', () => {
-    expect(validateEmail('')).toBe('Email is required')
-    expect(validateEmail('asha')).toBe('Enter a valid email address')
-    expect(validateEmail('asha@example')).toBe('Enter a valid email address')
-    expect(validateEmail('asha@example.com')).toBeUndefined()
-  })
-})
-
-describe('validateNewPassword', () => {
-  it('requires at least 8 characters', () => {
-    expect(validateNewPassword('')).toBe('Password is required')
-    expect(validateNewPassword('1234567')).toBe('Password must be at least 8 characters')
-    expect(validateNewPassword('12345678')).toBeUndefined()
-  })
-})
-
-describe('validateConfirmPassword', () => {
-  it('requires a matching confirmation', () => {
-    expect(validateConfirmPassword('secret123', '')).toBe('Please confirm your password')
-    expect(validateConfirmPassword('secret123', 'secret124')).toBe('Passwords do not match')
-    expect(validateConfirmPassword('secret123', 'secret123')).toBeUndefined()
-  })
-})
-
 describe('validateLoginForm', () => {
   it('only checks that the password is present', () => {
     const errors = validateLoginForm({ username: 'asha', password: 'x' })
@@ -79,38 +50,6 @@ describe('validateLoginForm', () => {
     expect(errors).toEqual({
       username: 'Username is required',
       password: 'Password is required',
-    })
-  })
-})
-
-describe('validateSignupForm', () => {
-  it('passes with valid values', () => {
-    const errors = validateSignupForm({
-      firstName: 'Asha',
-      lastName: 'Rao',
-      email: 'asha@example.com',
-      password: 'secret123',
-      confirmPassword: 'secret123',
-    })
-
-    expect(hasErrors(errors)).toBe(false)
-  })
-
-  it('reports each invalid field', () => {
-    const errors = validateSignupForm({
-      firstName: '',
-      lastName: ' ',
-      email: 'not-an-email',
-      password: 'short',
-      confirmPassword: 'other',
-    })
-
-    expect(errors).toEqual({
-      firstName: 'First name is required',
-      lastName: 'Last name is required',
-      email: 'Enter a valid email address',
-      password: 'Password must be at least 8 characters',
-      confirmPassword: 'Passwords do not match',
     })
   })
 })
